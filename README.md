@@ -43,6 +43,16 @@ The public game will then be available at:
 https://<github-user>.github.io/<repository-name>/
 ```
 
+To publish from this machine after authenticating GitHub:
+
+```bash
+gh auth login --hostname github.com --git-protocol ssh --web
+./publish.sh bench-organic-synthesis
+```
+
+`publish.sh` creates the public repository, pushes `main`, enables Pages and triggers the deploy.
+The source PDFs and extracted text are ignored, so they are not published.
+
 ## How to play
 
 1. Choose **Campaign** and open a brief.
