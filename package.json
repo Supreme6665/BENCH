@@ -1,0 +1,17 @@
+{
+  "name": "bench-organic-synthesis",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A text-based organic synthesis game built from the H2 Chemistry PDFs in this folder.",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test:data": "node tests/validate.mjs",
+    "test:economy": "node tests/economy.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "test:playthrough": "node tests/playthrough.mjs",
+    "test": "bash tests/run-all.sh"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.0"
+  }
+}

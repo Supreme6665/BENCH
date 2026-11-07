@@ -1,0 +1,5 @@
+node_modules/
+.txt/
+*.pdf
+*.tgz
+.DS_Store
