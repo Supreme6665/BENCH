@@ -16,6 +16,9 @@
   const CASE = REWARDS.case;
   const RARITIES = REWARDS.rarities || [];
   const REWARD_ITEMS = REWARDS.items || [];
+  const EXPANSION = DATA.expansion || { chapters: [] };
+  const EXP_CHAPTERS = EXPANSION.chapters || [];
+  const EXP_CASES = EXPANSION.cases || [];
   const REACTIONS = DATA.reactions;
   const MISSIONS = DATA.missions;
   const CONCEPTS = DATA.concepts;
@@ -30,6 +33,9 @@
   const view = { screen: "title", overlay: null };
   let mission = null;
   let concept = null;
+  let drill = null;
+  let chapterView = null;
+  let expCaseState = null;
   let caseState = null;
   let lastOverlayFocus = null;
 
@@ -45,7 +51,8 @@
       points: 0,
       casesOpened: 0,
       duplicates: 0,
-      collection: {}
+      collection: {},
+      expansion: { tutorials: {}, best: {}, attempts: {}, cases: {} }
     };
   }
 
@@ -66,6 +73,11 @@
       if (typeof parsed.casesOpened !== "number") parsed.casesOpened = 0;
       if (typeof parsed.duplicates !== "number") parsed.duplicates = 0;
       parsed.collection = parsed.collection && typeof parsed.collection === "object" ? parsed.collection : {};
+      parsed.expansion = parsed.expansion && typeof parsed.expansion === "object" ? parsed.expansion : {};
+      parsed.expansion.tutorials = parsed.expansion.tutorials && typeof parsed.expansion.tutorials === "object" ? parsed.expansion.tutorials : {};
+      parsed.expansion.best = parsed.expansion.best && typeof parsed.expansion.best === "object" ? parsed.expansion.best : {};
+      parsed.expansion.attempts = parsed.expansion.attempts && typeof parsed.expansion.attempts === "object" ? parsed.expansion.attempts : {};
+      parsed.expansion.cases = parsed.expansion.cases && typeof parsed.expansion.cases === "object" ? parsed.expansion.cases : {};
       return parsed;
     } catch {
       return blankProgress();
@@ -140,6 +152,20 @@
 
   function casesOpened() {
     return progress.casesOpened || 0;
+  }
+
+  function expCaseRecord(caseId) {
+    if (!progress.expansion.cases[caseId]) {
+      progress.expansion.cases[caseId] = { opened: 0, duplicates: 0, collection: {} };
+    }
+    return progress.expansion.cases[caseId];
+  }
+
+  function expCaseFound(caseId) {
+    const def = EXP_CASES.find((c) => c.id === caseId);
+    const rec = progress.expansion.cases[caseId];
+    if (!def || !rec) return 0;
+    return def.items.filter((item) => (rec.collection?.[item.id] || 0) > 0).length;
   }
 
   function caseOdds() {
@@ -333,6 +359,18 @@
     } else if (view.screen === "collection") {
       app.innerHTML = collectionHTML();
       document.title = "BENCH — Collection Book";
+    } else if (view.screen === "expansion") {
+      app.innerHTML = expansionHTML();
+      document.title = "BENCH — Expansion A–P";
+    } else if (view.screen === "chapter") {
+      app.innerHTML = chapterHTML();
+      document.title = "BENCH — Physical & Inorganic Chapter";
+    } else if (view.screen === "drill") {
+      app.innerHTML = drillHTML();
+      document.title = "BENCH — Chapter Drill";
+    } else if (view.screen === "expcases") {
+      app.innerHTML = expansionCasesHTML();
+      document.title = "BENCH — Topic Cases";
     }
     drawDiagrams();
     renderOverlay();
@@ -379,18 +417,23 @@
                 <span class="menu-label">Concept Lab</span>
                 <span class="menu-note">${CONCEPTS.length} questions</span>
               </button>
-              <button class="menu-item" data-action="case-lab">
+              <button class="menu-item" data-action="expansion">
                 <span class="menu-no">03</span>
+                <span class="menu-label">Physical & Inorganic</span>
+                <span class="menu-note">${EXP_CHAPTERS.length} chapters · 1,600 MCQs</span>
+              </button>
+              <button class="menu-item" data-action="case-lab">
+                <span class="menu-no">04</span>
                 <span class="menu-label">Case Lab</span>
                 <span class="menu-note">${CASE.cost} pts / case · ${REWARD_ITEMS.length} compounds</span>
               </button>
               <button class="menu-item" data-action="notes">
-                <span class="menu-no">04</span>
+                <span class="menu-no">05</span>
                 <span class="menu-label">Field Notes</span>
                 <span class="menu-note">Reagents · tests · mechanisms</span>
               </button>
               <button class="menu-item" data-action="help">
-                <span class="menu-no">05</span>
+                <span class="menu-no">06</span>
                 <span class="menu-label">How to play</span>
                 <span class="menu-note">Commands & scoring</span>
               </button>
@@ -485,6 +528,7 @@
         <div>TIP: open <button class="link-button" data-action="notes">FIELD NOTES</button> if you need the reagent table.</div>
         <div class="map-links">
           <button class="link-button" data-action="start-concepts">CONCEPT LAB</button>
+          <button class="link-button" data-action="expansion">EXPANSION A–P</button>
           <button class="link-button" data-action="case-lab">CASE LAB</button>
           <button class="link-button" data-action="help">HOW TO PLAY</button>
           <button class="link-button" data-action="reset-progress">RESET PROGRESS</button>
@@ -878,6 +922,290 @@
     `;
   }
 
+  /* ---------- physical & inorganic expansion ---------- */
+
+  function expansionHTML() {
+    const totalQuestions = EXP_CHAPTERS.reduce((sum, c) => sum + (c.questions?.length || 0), 0);
+    const completed = EXP_CHAPTERS.filter((c) => progress.expansion.best[c.code] >= 10).length;
+    const tutorials = EXP_CHAPTERS.filter((c) => progress.expansion.tutorials[c.code]).length;
+    return `
+      <header class="screen-head">
+        <button class="back-button" data-action="home">← Bench</button>
+        <div class="screen-title">
+          <span class="kicker">Expansion / documents A–P</span>
+          <h2>Physical & Inorganic</h2>
+        </div>
+        <div class="scoreboard">${EXP_CHAPTERS.length} CHAPTERS<br><span class="rank">${totalQuestions} MCQs · ${completed} Aced · ${tutorials} Tutorials Done</span></div>
+      </header>
+
+      <div class="expansion-intro">
+        <p>Sixteen new chapters, from moles and gases to transition-metal complexes and the Periodic Table. Every chapter has a five-step guided tutorial and a bank of 100 MCQs. The drill draws ten questions at a time; your best chapter score is saved.</p>
+      </div>
+
+      <div class="chapter-grid">
+        ${EXP_CHAPTERS.map((chapter) => {
+          const best = progress.expansion.best[chapter.code] || 0;
+          const tutorialDone = !!progress.expansion.tutorials[chapter.code];
+          const attempts = progress.expansion.attempts[chapter.code] || 0;
+          return `
+            <button class="chapter-card" data-action="chapter" data-code="${chapter.code}">
+              <span class="chapter-code">${esc(chapter.code)}</span>
+              <span class="chapter-title">${esc(chapter.title)}</span>
+              <span class="chapter-subtitle">${esc(chapter.subtitle)}</span>
+              <span class="chapter-meta">${chapter.questions?.length || 0} MCQs · ${chapter.sections.length} tutorial steps</span>
+              <span class="chapter-status">${tutorialDone ? "TUTORIAL DONE" : "TUTORIAL"} · ${best ? `BEST ${best}/10` : attempts ? "IN PROGRESS" : "UNSTARTED"}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+
+      <div class="expansion-actions">
+        <button class="button primary" data-action="expansion-cases">Topic cases · ${EXP_CASES.reduce((sum, c) => sum + c.items.length, 0)} collectibles</button>
+        <button class="button" data-action="map">Campaign</button>
+        <button class="button" data-action="case-lab">Organic Case Lab · ${progress.points || 0} PTS</button>
+        <button class="button" data-action="start-concepts">Organic Concept Lab</button>
+      </div>
+    `;
+  }
+
+  function expansionCasesHTML() {
+    const points = progress.points || 0;
+    const totalItems = EXP_CASES.reduce((sum, c) => sum + c.items.length, 0);
+    const totalFound = EXP_CASES.reduce((sum, c) => sum + expCaseFound(c.id), 0);
+    return `
+      <header class="screen-head">
+        <button class="back-button" data-action="expansion">← A–P</button>
+        <div class="screen-title">
+          <span class="kicker">Expansion / topic cases</span>
+          <h2>Topic cases</h2>
+        </div>
+        <div class="scoreboard">${points} PTS<br><span class="rank">ARCHIVE ${totalFound}/${totalItems}</span></div>
+      </header>
+
+      <div class="expansion-intro">
+        <p>Two optional cases built from the new chapters. Each costs <strong>30 research points</strong> and contains one compound or ion from the physical/inorganic topics. Duplicates refund points. Undiscovered entries stay hidden as <strong>?</strong>.</p>
+      </div>
+
+      <div class="exp-case-grid">
+        ${EXP_CASES.map((def) => {
+          const rec = expCaseRecord(def.id);
+          const found = expCaseFound(def.id);
+          return `
+            <section class="exp-case-card">
+              <div class="exp-case-head">
+                <span class="kicker">${def.tagline}</span>
+                <h3>${esc(def.name)}</h3>
+                <p>${def.items.length} collectibles · ${def.cost} PTS per case</p>
+              </div>
+              <div class="exp-case-items">
+                ${def.items.map((item) => {
+                  const rarity = rarityById(item.rarity);
+                  return `<span class="exp-item-chip rarity-${item.rarity}" style="--rarity:${rarity.color}">${esc(item.formula)}</span>`;
+                }).join("")}
+              </div>
+              <div class="case-actions">
+                <button class="button primary" data-action="open-exp-case" data-case="${def.id}" ${points >= def.cost ? "" : "disabled"}>Open case · ${def.cost} PTS</button>
+                <span class="exp-case-count">${found}/${def.items.length} found · ${rec.opened || 0} opened</span>
+              </div>
+              <div class="exp-archive">
+                ${def.items.map((item) => {
+                  const count = rec.collection?.[item.id] || 0;
+                  const rarity = rarityById(item.rarity);
+                  return `
+                    <div class="exp-archive-card ${count ? "" : "unknown"} rarity-${item.rarity}" style="--rarity:${rarity.color}">
+                      ${count ? `<strong>${esc(item.formula)}</strong><span>${esc(item.name)}</span>${count > 1 ? `<em>×${count}</em>` : ""}` : `<strong>?</strong><span>Undiscovered</span>`}
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+            </section>
+          `;
+        }).join("")}
+      </div>
+      <div class="expansion-actions">
+        <button class="button" data-action="expansion">Back to chapters</button>
+        <button class="button" data-action="case-lab">Organic Case Lab</button>
+      </div>
+    `;
+  }
+
+  function chapterHTML() {
+    const chapter = chapterView || EXP_CHAPTERS[0];
+    if (!chapter) return expansionHTML();
+    const best = progress.expansion.best[chapter.code] || 0;
+    const attempts = progress.expansion.attempts[chapter.code] || 0;
+    const tutorialDone = !!progress.expansion.tutorials[chapter.code];
+    return `
+      <header class="screen-head">
+        <button class="back-button" data-action="expansion">← A–P</button>
+        <div class="screen-title">
+          <span class="kicker">Chapter ${esc(chapter.code)} / ${esc(chapter.subtitle)}</span>
+          <h2>${esc(chapter.title)}</h2>
+        </div>
+        <div class="scoreboard">${chapter.questions?.length || 0} MCQs<br><span class="rank">BEST ${best}/10 · ${attempts} DRILLS</span></div>
+      </header>
+
+      <div class="chapter-layout">
+        <section class="tutorial-main">
+          <div class="tutorial-head">
+            <div>
+              <span class="kicker">Guided tutorial / five steps</span>
+              <h3>Learn the chapter, then test it</h3>
+            </div>
+            ${tutorialDone ? `<span class="stamp">Tutorial done</span>` : ""}
+          </div>
+          ${chapter.sections.map((section, i) => `
+            <details class="tutorial-step" ${i === 0 ? "open" : ""}>
+              <summary><span class="tutorial-no">${pad(i + 1)}</span>${esc(section.title)}</summary>
+              <div class="tutorial-body">
+                ${section.body.map((p) => `<p>${esc(p)}</p>`).join("")}
+                ${section.example ? `
+                  <div class="guided-check">
+                    <p><strong>Guided check.</strong> ${esc(section.example.prompt)}</p>
+                    <details>
+                      <summary>Show answer</summary>
+                      <p><strong>${esc(section.example.answer)}</strong> — ${esc(section.example.explanation)}</p>
+                    </details>
+                  </div>
+                ` : ""}
+              </div>
+            </details>
+          `).join("")}
+          <div class="tutorial-actions">
+            <button class="button primary" data-action="mark-tutorial" data-code="${chapter.code}">${tutorialDone ? "Tutorial completed ✓" : "Mark tutorial complete"}</button>
+          </div>
+        </section>
+
+        <aside class="chapter-side">
+          <div class="reward-panel">
+            <span>Chapter drill</span>
+            <strong>${best}/10</strong>
+            <small>10 random MCQs from ${chapter.questions?.length || 0}</small>
+            <button class="button primary" data-action="start-drill" data-code="${chapter.code}" style="margin-top:10px;width:100%">Start drill →</button>
+          </div>
+          <div class="reward-panel">
+            <span>Tutorial</span>
+            <strong>${tutorialDone ? "DONE" : "5 STEPS"}</strong>
+            <small>${tutorialDone ? "You have marked this chapter's tutorial complete." : "Open the five steps and use the guided checks."}</small>
+          </div>
+          <div class="reward-panel">
+            <span>Chapter code</span>
+            <strong>${esc(chapter.code)}</strong>
+            <small>${esc(chapter.subtitle)}</small>
+          </div>
+          <button class="button" data-action="expansion">All chapters</button>
+        </aside>
+      </div>
+    `;
+  }
+
+  function drillHTML() {
+    if (!drill) return expansionHTML();
+    if (drill.done) return drillResultHTML();
+    const chapter = drill.chapter;
+    const record = drill.questions[drill.index];
+    const q = chapter.questions[record.index];
+    const options = record.order.map((i) => q.options[i]);
+    const answered = drill.answered;
+    const selected = drill.selected;
+    return `
+      <header class="screen-head">
+        <button class="back-button" data-action="chapter" data-code="${chapter.code}">← Chapter</button>
+        <div class="screen-title">
+          <span class="kicker">${esc(chapter.code)} · ${esc(chapter.title)} / chapter drill</span>
+          <h2>Chapter drill</h2>
+        </div>
+        <div class="scoreboard">QUESTION <strong>${drill.index + 1}</strong> / ${drill.questions.length}<br><span class="rank">SCORE ${drill.correct}${drill.answers.length ? ` / ${drill.answers.length}` : ""}</span></div>
+      </header>
+
+      <div class="concept-layout">
+        <aside class="concept-side">
+          <h3>Drill progress</h3>
+          <div class="concept-progress" aria-label="Drill progress">
+            ${drill.questions.map((r, i) => {
+              const a = drill.answers[i];
+              const cls = a ? (a.correct ? "correct" : "wrong") : "";
+              return `<span class="concept-dot ${cls} ${i === drill.index ? "current" : ""}" title="Question ${i + 1}"></span>`;
+            }).join("")}
+          </div>
+          <p>Ten questions from the chapter bank. Every answer is explained. Your best score is saved.</p>
+          <div class="concept-best">CHAPTER BEST <strong>${progress.expansion.best[chapter.code] || 0}</strong> / 10</div>
+          <div class="concept-best" style="border-top:0;padding-top:4px">BANK <strong>${chapter.questions.length}</strong> MCQs</div>
+        </aside>
+
+        <section class="concept-card">
+          <span class="kicker">${esc(chapter.title)} · question ${pad(drill.index + 1)} / ${pad(drill.questions.length)}</span>
+          <h2>${esc(q.question)}</h2>
+          <div class="options">
+            ${options.map((option, i) => {
+              let cls = "option";
+              if (answered) {
+                if (i === record.answer) cls += " correct";
+                else if (i === selected) cls += " wrong";
+                else cls += " dim";
+              }
+              return `<button class="${cls}" data-action="drill-answer" data-index="${i}" ${answered ? "disabled" : ""}><span class="option-letter">${String.fromCharCode(65 + i)}</span><span>${esc(option)}</span></button>`;
+            }).join("")}
+          </div>
+          ${answered ? `
+            <div class="result ${selected === record.answer ? "result-ok" : "result-bad"} concept-result" role="status">
+              <div class="result-head">
+                <span class="result-mark">${selected === record.answer ? "✓" : "×"}</span>
+                <span>${selected === record.answer ? "Correct" : "Not quite"}</span>
+              </div>
+              <p>${esc(q.explanation)}</p>
+              <div class="source">Source: ${esc(q.source)}</div>
+            </div>
+          ` : ""}
+          <div class="concept-footer">
+            <span class="concept-score">SCORE <strong>${drill.correct}</strong> / ${drill.answers.length || 0}</span>
+            ${answered ? `<button class="button primary" data-action="drill-next">${drill.index + 1 >= drill.questions.length ? "See result →" : "Next question →"}</button>` : `<span class="mono-sm muted">Choose A, B, C or D.</span>`}
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
+  function drillResultHTML() {
+    const chapter = drill.chapter;
+    const total = drill.questions.length;
+    const score = drill.correct;
+    const pct = total ? Math.round((score / total) * 100) : 0;
+    const missed = drill.answers.map((a, i) => ({ a, q: chapter.questions[drill.questions[i].index] })).filter(({ a }) => !a.correct);
+    const label = pct >= 90 ? "Distinction" : pct >= 70 ? "Merit" : pct >= 50 ? "Pass" : "Review the tutorial";
+    return `
+      <header class="screen-head">
+        <button class="back-button" data-action="chapter" data-code="${chapter.code}">← Chapter</button>
+        <div class="screen-title">
+          <span class="kicker">${esc(chapter.code)} · chapter drill complete</span>
+          <h2>Chapter result</h2>
+        </div>
+        <div class="scoreboard">BEST <strong>${progress.expansion.best[chapter.code] || 0}</strong> / 10<br><span class="rank">${chapter.questions.length} MCQs IN BANK</span></div>
+      </header>
+      <div class="complete">
+        <div class="complete-top">
+          <span class="stamp">${pct >= 70 ? "Passed" : "Review"}</span>
+          <div><span class="kicker">${esc(chapter.title)}</span><h2>${score} / ${total}</h2></div>
+          ${drill.newBest ? `<span class="stamp" style="transform:rotate(3deg)">New best</span>` : ""}
+        </div>
+        <p class="complete-lede">${esc(label)}. ${score === total ? "A clean chapter. Move to the next one." : "Read the explanations for anything you missed, then run the drill again."}</p>
+        <div class="score-panel">
+          <div class="score-cell"><span>Correct</span><strong class="red">${score}</strong></div>
+          <div class="score-cell"><span>Percentage</span><strong>${pct}%</strong></div>
+          <div class="score-cell"><span>Best</span><strong>${progress.expansion.best[chapter.code] || 0} / 10</strong></div>
+        </div>
+        ${missed.length ? `
+          <div class="debrief"><h3>Review these</h3><ul class="review-list">${missed.map(({ q }) => `<li><strong>${esc(q.question)}</strong> — ${esc(q.explanation)}</li>`).join("")}</ul></div>
+        ` : `<div class="debrief"><h3>Debrief</h3><p>Every answer was correct. Try another set or move to the next chapter.</p></div>`}
+        <div class="complete-actions">
+          <button class="button primary" data-action="start-drill" data-code="${chapter.code}">New drill →</button>
+          <button class="button" data-action="chapter" data-code="${chapter.code}">Back to tutorial</button>
+          <button class="button" data-action="expansion">All chapters</button>
+        </div>
+      </div>
+    `;
+  }
+
   /* ---------- case lab & collection ---------- */
 
   function caseArtSVG() {
@@ -1108,6 +1436,132 @@
     animateCaseReel();
   }
 
+  function rollFrom(items) {
+    const total = items.reduce((sum, item) => sum + (item.weight || 0), 0);
+    let roll = Math.random() * total;
+    for (const item of items) {
+      roll -= item.weight || 0;
+      if (roll <= 0) return item;
+    }
+    return items[items.length - 1];
+  }
+
+  function openExpansionCase(caseId) {
+    const def = EXP_CASES.find((c) => c.id === caseId);
+    if (!def) return;
+    const points = progress.points || 0;
+    if (points < def.cost) {
+      toast(`Need ${def.cost - points} more research points.`);
+      return;
+    }
+    const rec = expCaseRecord(caseId);
+    const item = rollFrom(def.items);
+    const ownedBefore = rec.collection[item.id] || 0;
+    const isNew = ownedBefore === 0;
+    progress.points = points - def.cost;
+    rec.opened = (rec.opened || 0) + 1;
+    let refund = 0;
+    if (isNew) {
+      rec.collection[item.id] = 1;
+    } else {
+      refund = REWARDS.case.duplicateRefunds?.[item.rarity] || 0;
+      progress.points += refund;
+      rec.duplicates = (rec.duplicates || 0) + 1;
+      rec.collection[item.id] = ownedBefore + 1;
+    }
+    const reel = [];
+    for (let i = 0; i < 40; i += 1) reel.push(i === 33 ? item : def.items[Math.floor(Math.random() * def.items.length)]);
+    expCaseState = { def, item, isNew, refund, reel, phase: "spinning", token: Date.now() + Math.random() };
+    saveProgress();
+    view.overlay = "expcase";
+    render();
+    focusElement(".case-opening-panel");
+    animateExpCaseReel();
+  }
+
+  function expCaseReelCard(item) {
+    const rarity = rarityById(item.rarity);
+    return `<div class="case-reel-card rarity-${item.rarity}" style="--rarity:${rarity.color}"><span class="case-reel-rarity">${esc(rarity.label)}</span><strong>${esc(item.name)}</strong><span>${esc(item.formula)}</span></div>`;
+  }
+
+  function animateExpCaseReel() {
+    if (!expCaseState || expCaseState.phase !== "spinning") return;
+    const token = expCaseState.token;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      expCaseState.phase = "revealed";
+      renderOverlay();
+      focusElement(".overlay-close");
+      return;
+    }
+    const alive = () => expCaseState && expCaseState.token === token && expCaseState.phase === "spinning";
+    const note = (text) => { if (alive()) { const el = document.getElementById("exp-case-spin-note"); if (el) el.textContent = text; } };
+    window.requestAnimationFrame(() => {
+      const reel = document.getElementById("exp-case-reel");
+      const win = document.getElementById("exp-case-reel-window");
+      const target = reel?.children?.[33];
+      if (!reel || !win || !target) return;
+      const targetOffset = Math.max(0, target.offsetLeft + target.offsetWidth / 2 - win.clientWidth / 2);
+      reel.style.transition = "transform 8.75s cubic-bezier(0.06, 0.72, 0.08, 1)";
+      reel.style.transform = `translate3d(-${targetOffset + 58}px, 0, 0)`;
+      note("The case is opening…");
+      window.setTimeout(() => note("Slowing down…"), 3300);
+      window.setTimeout(() => note("The marker is closing in…"), 6300);
+      window.setTimeout(() => note("Wait for it…"), 8600);
+      window.setTimeout(() => {
+        if (!alive()) return;
+        reel.style.transition = "transform 0.9s cubic-bezier(0.18, 0.84, 0.2, 1)";
+        reel.style.transform = `translate3d(-${targetOffset}px, 0, 0)`;
+      }, 8750);
+    });
+    window.setTimeout(() => {
+      if (alive()) { expCaseState.phase = "revealed"; renderOverlay(); focusElement(".overlay-close"); }
+    }, 9900);
+  }
+
+  function expCaseOverlayHTML() {
+    if (!expCaseState) return "";
+    const def = expCaseState.def;
+    const item = expCaseState.item;
+    const rarity = rarityById(item.rarity);
+    if (expCaseState.phase === "spinning") {
+      return `
+        <div class="overlay case-overlay" data-overlay-backdrop>
+          <div class="overlay-panel case-opening-panel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="exp-case-title">
+            <div class="overlay-head"><h2 id="exp-case-title">Opening ${esc(def.name)}</h2><span class="case-overlay-balance">${progress.points || 0} PTS</span></div>
+            <div class="overlay-body">
+              <div class="case-reel-window" id="exp-case-reel-window"><div class="case-reel" id="exp-case-reel">${expCaseState.reel.map(expCaseReelCard).join("")}</div><div class="case-reel-marker" aria-hidden="true"></div></div>
+              <p class="case-spin-note" id="exp-case-spin-note">One collectible. ${def.cost} research points. Good luck.</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    const rec = expCaseRecord(def.id);
+    const found = expCaseFound(def.id);
+    return `
+      <div class="overlay case-overlay" data-overlay-backdrop>
+        <div class="overlay-panel case-reveal-panel rarity-${item.rarity}" style="--rarity:${rarity.color}" role="dialog" aria-modal="true" aria-labelledby="exp-case-title">
+          <div class="overlay-head"><h2 id="exp-case-title">Case opened</h2><button class="overlay-close" data-action="close-overlay">Close ✕</button></div>
+          <div class="overlay-body case-reveal">
+            <div class="case-reveal-rarity"><span class="rarity-dot"></span>${esc(rarity.label)}</div>
+            <div class="exp-winner-formula">${esc(item.formula)}</div>
+            <h3>${esc(item.name)}</h3>
+            <p>${esc(item.blurb)}</p>
+            <div class="case-reveal-status">${expCaseState.isNew ? `<span class="stamp">New archive entry</span>` : `<span class="stamp">Duplicate +${expCaseState.refund} PTS</span>`}<span>Archive ${found}/${def.items.length}</span></div>
+            <div class="case-reveal-meta">${esc(def.name)} · ${rec.opened} opened · ${progress.points || 0} PTS</div>
+            <div class="complete-actions">
+              <button class="button primary" data-action="open-exp-case" data-case="${def.id}" ${(progress.points || 0) >= def.cost ? "" : "disabled"}>Open another · ${def.cost} PTS</button>
+              <button class="button" data-action="expansion-cases">Topic archive</button>
+              <button class="button" data-action="close-overlay">Close</button>
+            </div>
+            ${(progress.points || 0) < def.cost ? `<p class="case-progress">${progress.points || 0} / ${def.cost} PTS · ${def.cost - (progress.points || 0)} more correct answers for the next case.</p>` : ""}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function animateCaseReel() {
     if (!caseState || caseState.phase !== "spinning") return;
     const token = caseState.token;
@@ -1259,6 +1713,10 @@
       drawDiagrams();
       return;
     }
+    if (view.overlay === "expcase" && expCaseState) {
+      overlayRoot.innerHTML = expCaseOverlayHTML();
+      return;
+    }
     if (view.overlay === "help") {
       overlayRoot.innerHTML = `
         <div class="overlay" data-overlay-backdrop>
@@ -1323,7 +1781,9 @@
 
   function closeOverlay() {
     if (view.overlay === "case" && caseState?.phase === "spinning") return;
+    if (view.overlay === "expcase" && expCaseState?.phase === "spinning") return;
     if (view.overlay === "case") caseState = null;
+    if (view.overlay === "expcase") expCaseState = null;
     view.overlay = null;
     renderOverlay();
     if (lastOverlayFocus && document.contains(lastOverlayFocus)) {
@@ -1361,6 +1821,57 @@
     view.screen = "notes";
     view.overlay = null;
     location.hash = "notes";
+    render();
+    scrollTop();
+  }
+
+  function goExpansion() {
+    view.screen = "expansion";
+    view.overlay = null;
+    caseState = null;
+    location.hash = "expansion";
+    render();
+    scrollTop();
+  }
+
+  function goExpansionCases() {
+    view.screen = "expcases";
+    view.overlay = null;
+    caseState = null;
+    expCaseState = null;
+    location.hash = "expansion-cases";
+    render();
+    scrollTop();
+  }
+
+  function goChapter(code) {
+    const chapter = EXP_CHAPTERS.find((c) => c.code === code);
+    if (!chapter) { goExpansion(); return; }
+    chapterView = chapter;
+    view.screen = "chapter";
+    view.overlay = null;
+    caseState = null;
+    location.hash = `chapter/${code}`;
+    render();
+    scrollTop();
+  }
+
+  function startDrill(code) {
+    const chapter = EXP_CHAPTERS.find((c) => c.code === code);
+    if (!chapter) { goExpansion(); return; }
+    const ids = shuffle(chapter.questions.map((_, i) => i)).slice(0, Math.min(10, chapter.questions.length));
+    const questions = ids.map((index) => {
+      const q = chapter.questions[index];
+      const order = shuffleOptionOrder(q.options.length);
+      return { index, order, answer: order.indexOf(q.answer) };
+    });
+    drill = { chapter, questions, index: 0, correct: 0, answers: [], selected: null, answered: false, done: false, newBest: false };
+    progress.expansion.attempts[code] = (progress.expansion.attempts[code] || 0) + 1;
+    saveProgress();
+    view.screen = "drill";
+    view.overlay = null;
+    caseState = null;
+    location.hash = `drill/${code}`;
     render();
     scrollTop();
   }
@@ -1764,6 +2275,47 @@
      concept logic
      ============================================================ */
 
+  function markTutorial(code) {
+    progress.expansion.tutorials[code] = true;
+    saveProgress();
+    render();
+    toast("Tutorial marked complete.");
+  }
+
+  function answerDrill(index) {
+    if (!drill || drill.done || drill.answered) return;
+    const record = drill.questions[drill.index];
+    const q = drill.chapter.questions[record.index];
+    if (index < 0 || index >= record.order.length) return;
+    drill.selected = index;
+    drill.answered = true;
+    const correct = index === record.answer;
+    if (correct) drill.correct += 1;
+    drill.answers.push({ index: record.index, selected: index, correct });
+    render();
+  }
+
+  function nextDrill() {
+    if (!drill || !drill.answered) return;
+    if (drill.index + 1 < drill.questions.length) {
+      drill.index += 1;
+      drill.selected = null;
+      drill.answered = false;
+      render();
+      scrollTop();
+      return;
+    }
+    drill.done = true;
+    const code = drill.chapter.code;
+    const best = progress.expansion.best[code] || 0;
+    drill.newBest = drill.correct > best;
+    progress.expansion.best[code] = Math.max(best, drill.correct);
+    saveProgress();
+    render();
+    scrollTop();
+    if (drill.newBest) toast(`New chapter best: ${drill.correct} / 10`);
+  }
+
   function answerConcept(index) {
     if (!concept || concept.done || concept.answered) return;
     const q = CONCEPTS.find((c) => c.id === concept.ids[concept.index]);
@@ -1841,6 +2393,14 @@
     else if (action === "mission") startMission(id);
     else if (action === "replay") startMission(id);
     else if (action === "notes") goNotes();
+    else if (action === "expansion") goExpansion();
+    else if (action === "expansion-cases") goExpansionCases();
+    else if (action === "open-exp-case" && target.dataset.case) openExpansionCase(target.dataset.case);
+    else if (action === "chapter" && target.dataset.code) goChapter(target.dataset.code);
+    else if (action === "start-drill" && target.dataset.code) startDrill(target.dataset.code);
+    else if (action === "mark-tutorial" && target.dataset.code) markTutorial(target.dataset.code);
+    else if (action === "drill-answer") answerDrill(Number(target.dataset.index));
+    else if (action === "drill-next") nextDrill();
     else if (action === "case-lab") goCaseLab();
     else if (action === "collection") goCollection();
     else if (action === "open-case") openCase();
@@ -1950,6 +2510,25 @@
       view.screen = "notes";
       render();
       return true;
+    }
+    if (hash === "expansion") {
+      view.screen = "expansion";
+      render();
+      return true;
+    }
+    if (hash === "expansion-cases") {
+      view.screen = "expcases";
+      render();
+      return true;
+    }
+    if (hash.startsWith("chapter/")) {
+      const code = hash.slice("chapter/".length);
+      const chapter = EXP_CHAPTERS.find((c) => c.code === code);
+      if (chapter) { chapterView = chapter; view.screen = "chapter"; render(); return true; }
+    }
+    if (hash.startsWith("drill/")) {
+      const code = hash.slice("drill/".length);
+      if (EXP_CHAPTERS.some((c) => c.code === code)) { startDrill(code); return true; }
     }
     if (hash === "case") {
       view.screen = "case";

@@ -122,10 +122,18 @@ stored in `localStorage`; nothing leaves the browser.
   rendered skeletal diagrams, and the four answer options are shuffled for every question.
   Diagrams are omitted where a caption would give the answer away (for example, “Which compound
   is a ketone?”).
+- **Physical & Inorganic (A–P)** — 16 chapters: mole concept, volumetric analysis, atomic structure,
+  periodicity, gases, bonding, energetics, thermodynamics, kinetics, chemical equilibrium,
+  acid–base equilibrium, solubility equilibrium, electrochemical cells, electrolytic cells,
+  transition metals and the Periodic Table. Every chapter has a **five-step tutorial with guided
+  checks** and a bank of **100 MCQs** (1,600 total). The chapter drill draws 10 random questions,
+  explains every answer and saves your best score.
 - **Case Lab** — spend 30 research points to open a weighted chemistry case with a ~10-second
   CS:GO-style reel animation. Every case gives one compound; duplicates refund points.
-- **Collection book** — 16 compounds grouped by rarity. Found compounds show their skeletal structure;
-  undiscovered compounds are shown as `?`.
+- **Collection book** — 16 organic compounds grouped by rarity. Found compounds show their skeletal
+  structure; undiscovered compounds are shown as `?`.
+- **Topic cases** — two extra cases built from the A–P chapters: the Physical Chemistry Case and the
+  Inorganic & Electrochemistry Case. Each has 8 collectibles and a separate archive with `?` entries.
 - **Field Notes** — seven compact reference cards: oxidation ladder, reduction, substitution vs
   elimination, aromatic directing, tests, mechanisms, and polymers.
 
@@ -138,6 +146,8 @@ stored in `localStorage`; nothing leaves the browser.
 | `data.js` | 99 compounds, 32 skeletal SMILES, 53 reagents, 165 reactions, 13 missions |
 | `concepts.js` | 80 additional concept questions (bank 20 → 100) |
 | `concepts-200.js` | 200 more concept questions (bank 100 → 300) |
+| `expansion-content.js` | 16 A–P chapter tutorials and the two topic-case item pools |
+| `expansion-questions.js` | Generated banks of 100 validated MCQs per A–P chapter |
 | `rewards.js` | 16 case compounds, five rarities, drop weights and duplicate refunds |
 | `game.js` | routing, missions, concept lab, case opening, collection book, localStorage, diagrams |
 | `vendor/smiles-drawer.min.js` | offline SMILES → skeletal-SVG renderer (MIT; license in `vendor/`) |
@@ -168,6 +178,7 @@ reactions: 165
 missions: 13, steps: 27
 concepts: 300
 reward items: 16, total weight: 10000
+expansion chapters: 16, MCQs: 1600
 OK: all mission routes are valid and reachable.
 
 items: 16
@@ -177,7 +188,9 @@ estimated time at 150 correct answers/hour: 10.3 h
 Economy target OK (around 10 h at 150 correct answers/hour).
 
 PASS  case opening lasts around 10 seconds
-checks: 50, passed: 50, failed: 0
+PASS  expansion contains 1600 MCQs
+PASS  topic case reveals a collectible
+checks: 66, passed: 66, failed: 0
 
 All 13 missions cleared automatically, 27 steps.
 ```

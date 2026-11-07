@@ -3,3 +3,5 @@ node_modules/
 *.pdf
 *.tgz
 .DS_Store
+
+.txt2/

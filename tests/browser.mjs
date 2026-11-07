@@ -24,7 +24,7 @@ await page.reload({ waitUntil: "networkidle" });
 
 // Title
 ok(await page.locator("h1").innerText().then((t) => t.includes("Make the molecule")), "title screen renders");
-ok((await page.locator(".menu-item").count()) === 5, "title has five menu items");
+ok((await page.locator(".menu-item").count()) === 6, "title has six menu items");
 ok((await page.evaluate(() => window.BENCH_DATA.concepts.length)) === 300, "concept bank contains 300 questions");
 
 // Every concept diagram SMILES must parse and draw.
@@ -293,6 +293,62 @@ const duplicate = await page.evaluate(() => {
 ok(duplicate.points >= 2 && duplicate.points <= 15, "duplicate refunds points by rarity");
 ok(duplicate.duplicates === 1 && duplicate.cases === 11, "duplicate and case counters update");
 await page.screenshot({ path: `${OUT}/bench-case-duplicate.png`, fullPage: true });
+
+// Physical & Inorganic expansion: all 16 chapters, tutorial, and a 10-question drill.
+await page.goto(`${URL}/?expansion=1#expansion`, { waitUntil: "networkidle" });
+await page.waitForSelector(".chapter-grid");
+ok((await page.locator(".chapter-card").count()) === 16, "expansion lists 16 chapters");
+ok((await page.evaluate(() => window.BENCH_DATA.expansion.chapters.reduce((sum, chapter) => sum + chapter.questions.length, 0))) === 1600, "expansion contains 1600 MCQs");
+ok((await page.evaluate(() => window.BENCH_DATA.expansion.chapters.every((chapter) => chapter.questions.length >= 100 && chapter.sections.length >= 5))) === true, "every chapter has 100 MCQs and a tutorial");
+await page.screenshot({ path: `${OUT}/bench-expansion.png`, fullPage: true });
+
+await page.locator('.chapter-card[data-code="A"]').click();
+await page.waitForSelector(".tutorial-step");
+ok((await page.locator(".tutorial-step").count()) === 5, "chapter A tutorial has five steps");
+ok((await page.locator(".chapter-side").innerText()).includes("100"), "chapter A has a 100-question bank");
+await page.locator('[data-action="mark-tutorial"]').click();
+await page.waitForTimeout(150);
+ok((await page.evaluate(() => JSON.parse(localStorage.getItem("bench.progress.v1")).expansion.tutorials.A)) === true, "tutorial completion is saved");
+await page.locator('[data-action="start-drill"]').click();
+await page.waitForSelector(".concept-card");
+ok((await page.locator(".option").count()) === 4, "chapter drill renders four options");
+for (let i = 0; i < 10; i += 1) {
+  await page.locator(".option").first().click();
+  await page.waitForSelector(".concept-result");
+  await page.locator('[data-action="drill-next"]').click();
+}
+await page.waitForSelector(".complete");
+ok((await page.locator(".screen-title h2").innerText()).toLowerCase().includes("chapter result"), "chapter drill result renders");
+const chapterBest = await page.evaluate(() => JSON.parse(localStorage.getItem("bench.progress.v1")).expansion.best.A);
+ok(typeof chapterBest === "number" && chapterBest >= 0 && chapterBest <= 10, "chapter best score is saved");
+await page.screenshot({ path: `${OUT}/bench-drill-result.png`, fullPage: true });
+
+// Expansion topic cases: two cases, 16 collectibles, separate archive.
+await page.evaluate(() => {
+  const progress = {
+    missions: {}, concepts: { best: 0, attempts: 0 }, totalRuns: 0,
+    points: 30, casesOpened: 0, duplicates: 0, collection: {},
+    expansion: { tutorials: {}, best: {}, attempts: {}, cases: {} }
+  };
+  localStorage.setItem("bench.progress.v1", JSON.stringify(progress));
+});
+await page.goto(`${URL}/?expcases=1#expansion-cases`, { waitUntil: "networkidle" });
+await page.waitForSelector(".exp-case-grid");
+ok((await page.locator(".exp-case-card").count()) === 2, "expansion has two topic cases");
+ok((await page.locator(".exp-item-chip").count()) === 16, "topic cases contain 16 collectibles");
+ok((await page.locator(".exp-archive-card.unknown").count()) === 16, "undiscovered topic-case items are ?");
+await page.locator('[data-action="open-exp-case"]').first().click();
+await page.waitForSelector(".case-reel-window");
+ok((await page.locator(".case-reel-card").count()) === 40, "topic case renders a reel");
+await page.waitForSelector(".exp-winner-formula", { timeout: 15000 });
+ok((await page.locator(".exp-winner-formula").innerText()).length > 0, "topic case reveals a collectible");
+const topicCase = await page.evaluate(() => {
+  const p = JSON.parse(localStorage.getItem("bench.progress.v1"));
+  return { points: p.points, physical: p.expansion.cases.physical };
+});
+ok(topicCase.points === 0, "topic case costs 30 points");
+ok(Object.keys(topicCase.physical.collection).length === 1, "topic case adds one archive entry");
+await page.screenshot({ path: `${OUT}/bench-exp-case.png`, fullPage: true });
 
 // Mobile screenshot
 await page.setViewportSize({ width: 390, height: 844 });

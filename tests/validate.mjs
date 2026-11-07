@@ -5,11 +5,15 @@ const source = fs.readFileSync(new URL("../data.js", import.meta.url), "utf8");
 const extraConcepts = fs.readFileSync(new URL("../concepts.js", import.meta.url), "utf8");
 const extraConcepts2 = fs.readFileSync(new URL("../concepts-200.js", import.meta.url), "utf8");
 const rewardsSource = fs.readFileSync(new URL("../rewards.js", import.meta.url), "utf8");
+const expansionContent = fs.readFileSync(new URL("../expansion-content.js", import.meta.url), "utf8");
+const expansionQuestions = fs.readFileSync(new URL("../expansion-questions.js", import.meta.url), "utf8");
 const sandbox = { window: {} };
 vm.runInNewContext(source, sandbox);
 vm.runInNewContext(extraConcepts, sandbox);
 vm.runInNewContext(extraConcepts2, sandbox);
 vm.runInNewContext(rewardsSource, sandbox);
+vm.runInNewContext(expansionContent, sandbox);
+vm.runInNewContext(expansionQuestions, sandbox);
 const DATA = sandbox.window.BENCH_DATA;
 
 const errors = [];
@@ -70,7 +74,10 @@ DATA.missions.forEach((m) => {
 });
 
 // 3. concepts
-const normalise = (value) => String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+const normalise = (value) => {
+  const subs = { "₀": "0", "₁": "1", "₂": "2", "₃": "3", "₄": "4", "₅": "5", "₆": "6", "₇": "7", "₈": "8", "₉": "9" };
+  return String(value).toLowerCase().replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (c) => subs[c]).replace(/[^a-z0-9]/g, "");
+};
 const seenConcepts = new Set();
 DATA.concepts.forEach((c, i) => {
   if (seenConcepts.has(c.id)) errors.push(`duplicate concept id ${c.id}`);
@@ -134,6 +141,41 @@ if (!rewards) {
   });
 }
 
+// 3c. physical & inorganic expansion
+const expansion = DATA.expansion;
+if (!expansion || !Array.isArray(expansion.chapters)) {
+  errors.push("missing A–P expansion");
+} else {
+  if (expansion.chapters.length !== 16) errors.push(`expansion has ${expansion.chapters.length} chapters; expected 16`);
+  const codes = new Set();
+  let total = 0;
+  expansion.chapters.forEach((chapter) => {
+    if (codes.has(chapter.code)) errors.push(`duplicate chapter code ${chapter.code}`);
+    codes.add(chapter.code);
+    if (!Array.isArray(chapter.sections) || chapter.sections.length < 5) {
+      errors.push(`${chapter.code}: expected at least 5 tutorial sections`);
+    }
+    if (!Array.isArray(chapter.questions) || chapter.questions.length < 100) {
+      errors.push(`${chapter.code}: only ${chapter.questions?.length || 0} MCQs; expected 100`);
+      return;
+    }
+    total += chapter.questions.length;
+    const seenQ = new Set();
+    chapter.questions.forEach((q) => {
+      if (!q.question) errors.push(`${chapter.code} ${q.id}: no question`);
+      if (!Array.isArray(q.options) || q.options.length !== 4) errors.push(`${chapter.code} ${q.id}: needs 4 options`);
+      if (new Set(q.options).size !== 4) errors.push(`${chapter.code} ${q.id}: duplicate options`);
+      if (typeof q.answer !== "number" || q.answer < 0 || q.answer >= 4) errors.push(`${chapter.code} ${q.id}: bad answer`);
+      if (!q.explanation) errors.push(`${chapter.code} ${q.id}: no explanation`);
+      if (!q.source) errors.push(`${chapter.code} ${q.id}: no source`);
+      const key = normalise(q.question);
+      if (seenQ.has(key)) errors.push(`${chapter.code} ${q.id}: duplicate question text`);
+      seenQ.add(key);
+    });
+  });
+  if (total < 1600) errors.push(`expansion has ${total} MCQs; expected at least 1600`);
+}
+
 // 4. reachability: for each mission, BFS through reaction graph from start to target
 function bfs(start, target) {
   const q = [[start, 0]];
@@ -173,6 +215,7 @@ console.log(`reactions: ${reactions.length}`);
 console.log(`missions: ${DATA.missions.length}, steps: ${DATA.missions.reduce((a, m) => a + m.steps.length, 0)}`);
 console.log(`concepts: ${DATA.concepts.length}`);
 console.log(`reward items: ${rewards?.items?.length || 0}, total weight: ${rewards?.items?.reduce((a, i) => a + (i.weight || 0), 0) || 0}`);
+console.log(`expansion chapters: ${DATA.expansion?.chapters?.length || 0}, MCQs: ${DATA.expansion?.chapters?.reduce((a, c) => a + c.questions.length, 0) || 0}`);
 if (warn.length) {
   console.log("\nWARNINGS:");
   warn.forEach((w) => console.log("  ! " + w));

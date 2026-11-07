@@ -20,8 +20,11 @@ A text-based organic synthesis game served at localhost, built from the H2 organ
 - **Campaign** — 13 missions, 27 steps, covering alkanes/alkenes/arenes, halogenoalkanes,
   alcohols/phenols, carbonyls, carboxylic acids/derivatives and nitrogen compounds.
 - **Concept Lab** — 300 multiple-choice concept questions on mechanisms, tests, selectivity, structure recognition and polymers, with skeletal diagrams where the question refers to a structure — omitted where a caption would reveal the answer. Answer options are shuffled for every question.
+- **Physical & Inorganic (A–P)** — 16 chapters, each with a five-step guided tutorial and 100 MCQs
+  (1,600 total), plus a 10-question chapter drill with explanations and best-score tracking.
 - **Case Lab** — 30 research points opens one weighted chemistry case. Sixteen compounds across five
   rarities; a ~10-second CS:GO-style reel with an overshoot-and-settle finish; duplicates refund points.
+- **Topic cases** — two extra A–P cases with 8 collectibles each and separate `?` archives.
 - **Collection book** — found compounds show skeletal structures; undiscovered compounds are `?`.
 - **Field Notes** — a compact data-booklet drawn from the summary chapter.
 
