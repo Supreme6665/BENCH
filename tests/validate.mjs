@@ -174,6 +174,28 @@ if (!expansion || !Array.isArray(expansion.chapters)) {
     });
   });
   if (total < 1600) errors.push(`expansion has ${total} MCQs; expected at least 1600`);
+  const cases = expansion.cases;
+  if (!Array.isArray(cases) || cases.length !== 3) {
+    errors.push(`expansion has ${cases?.length || 0} cases; expected 3`);
+  } else {
+    const caseIds = new Set();
+    cases.forEach((def) => {
+      if (caseIds.has(def.id)) errors.push(`duplicate case id ${def.id}`);
+      caseIds.add(def.id);
+      if (def.cost !== 30) errors.push(`${def.id}: case cost must be 30`);
+      if (!Array.isArray(def.items) || def.items.length !== 8) errors.push(`${def.id}: expected 8 collectibles`);
+      const itemIds = new Set();
+      (def.items || []).forEach((item) => {
+        if (itemIds.has(item.id)) errors.push(`${def.id}: duplicate item ${item.id}`);
+        itemIds.add(item.id);
+        if (!item.name || !item.formula || !item.blurb) errors.push(`${def.id} ${item.id}: incomplete item`);
+        if (!["common", "uncommon", "rare", "epic", "legendary"].includes(item.rarity)) {
+          errors.push(`${def.id} ${item.id}: bad rarity ${item.rarity}`);
+        }
+        if (typeof item.weight !== "number" || item.weight <= 0) errors.push(`${def.id} ${item.id}: bad weight`);
+      });
+    });
+  }
 }
 
 // 4. reachability: for each mission, BFS through reaction graph from start to target
@@ -216,6 +238,7 @@ console.log(`missions: ${DATA.missions.length}, steps: ${DATA.missions.reduce((a
 console.log(`concepts: ${DATA.concepts.length}`);
 console.log(`reward items: ${rewards?.items?.length || 0}, total weight: ${rewards?.items?.reduce((a, i) => a + (i.weight || 0), 0) || 0}`);
 console.log(`expansion chapters: ${DATA.expansion?.chapters?.length || 0}, MCQs: ${DATA.expansion?.chapters?.reduce((a, c) => a + c.questions.length, 0) || 0}`);
+console.log(`expansion cases: ${DATA.expansion?.cases?.length || 0}, collectibles: ${DATA.expansion?.cases?.reduce((a, c) => a + c.items.length, 0) || 0}`);
 if (warn.length) {
   console.log("\nWARNINGS:");
   warn.forEach((w) => console.log("  ! " + w));

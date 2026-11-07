@@ -5,10 +5,11 @@ molecule, a target molecule and a rack of numbered reagent systems. Pick the rig
 step, watch the product appear, and build a multi-step route. Wrong reagents still react — they just
 take you somewhere else, and the game tells you where.
 
-Correct Concept Lab answers earn research points. Thirty points opens a CS:GO-style chemistry case
-containing one of 16 compounds across five rarity tiers. Collect the full set in the collection book;
-undiscovered compounds stay hidden as `?`. The economy is calibrated at roughly 10 hours of Concept Lab
-at 150 correct answers per hour.
+Research points are universal. Campaign briefs, Concept Lab answers, chapter tutorials and chapter
+drills all pay into one wallet, and thirty points opens any case from the unified Case Lab. Four cases hold 40 collectibles:
+16 organic compounds, 8 physical-chemistry items, 8 inorganic/electrochemistry items and 8 metals.
+Discoveries stay hidden as `?` until found; duplicates refund points. The organic economy is calibrated
+at roughly 10 hours of play at 150 points per hour.
 
 The content is compiled from the H2 Organic Chemistry notes: alkanes, alkenes, arenes, halogen
 derivatives, alcohols, phenols, carbonyl compounds, carboxylic acids and derivatives, nitrogen
@@ -97,10 +98,12 @@ stored in `localStorage`; nothing leaves the browser.
 
 ## Reward system
 
-- **1 research point** per correct Concept Lab answer.
-- **30 points** per case opening — exactly 30 correct answers.
-- **16 collectible compounds** across Common (35%), Uncommon (28%), Rare (18%), Epic (14.01%) and
-  Legendary (4.99%).
+- **One universal wallet.** Campaign briefs pay 2–5 points by yield; correct Concept Lab answers pay
+  1 point; marking a chapter tutorial pays 5 points once; finishing a chapter drill pays 2 points +
+  1 per correct answer + a 3-point first-clear bonus. Any points earned anywhere spend on any case.
+- **30 points** per case opening, whichever of the four cases you choose.
+- **40 collectibles across four cases:** 16 organic compounds plus 8 physical, 8 inorganic and 8 metals,
+  across Common, Uncommon, Rare, Epic and Legendary tiers.
 - **~10-second CS:GO-style opening**: a long spin, a slow-down, an overshoot past the winner, a settle,
   then the reveal.
 - **Duplicates** refund points by rarity: Common 2, Uncommon 3, Rare 5, Epic 8, Legendary 15.
@@ -128,12 +131,13 @@ stored in `localStorage`; nothing leaves the browser.
   transition metals and the Periodic Table. Every chapter has a **five-step tutorial with guided
   checks** and a bank of **100 MCQs** (1,600 total). The chapter drill draws 10 random questions,
   explains every answer and saves your best score.
-- **Case Lab** — spend 30 research points to open a weighted chemistry case with a ~10-second
-  CS:GO-style reel animation. Every case gives one compound; duplicates refund points.
-- **Collection book** — 16 organic compounds grouped by rarity. Found compounds show their skeletal
-  structure; undiscovered compounds are shown as `?`.
-- **Topic cases** — two extra cases built from the A–P chapters: the Physical Chemistry Case and the
-  Inorganic & Electrochemistry Case. Each has 8 collectibles and a separate archive with `?` entries.
+- **Case Lab** — one interface for every case: Organic, Physical Chemistry, Inorganic &
+  Electrochemistry, and Metals. Each card shows its archive, found count and opened count, with a single
+  shared points balance. Spend 30 points on any case and watch a ~10-second CS:GO-style reel in a
+  large, full-screen opening stage; duplicates refund points.
+- **Collection book** — the organic case's 16 compounds grouped by rarity. Found compounds show their
+  skeletal structure; undiscovered compounds are shown as `?`. The other three archives live directly
+  in the Case Lab.
 - **Field Notes** — seven compact reference cards: oxidation ladder, reduction, substitution vs
   elimination, aromatic directing, tests, mechanisms, and polymers.
 
@@ -179,6 +183,7 @@ missions: 13, steps: 27
 concepts: 300
 reward items: 16, total weight: 10000
 expansion chapters: 16, MCQs: 1600
+expansion cases: 3, collectibles: 24
 OK: all mission routes are valid and reachable.
 
 items: 16
@@ -188,9 +193,15 @@ estimated time at 150 correct answers/hour: 10.3 h
 Economy target OK (around 10 h at 150 correct answers/hour).
 
 PASS  case opening lasts around 10 seconds
-PASS  expansion contains 1600 MCQs
-PASS  topic case reveals a collectible
-checks: 66, passed: 66, failed: 0
+PASS  case opening fills most of the screen
+PASS  case lab lists all four cases in one interface
+PASS  one interface shows all 40 case collectibles
+PASS  chapter tutorial awards 5 universal points
+PASS  finishing a drill awards 2 base + 1 per correct + 3 first-clear points
+PASS  metals case is accessible
+PASS  one universal wallet pays for a topic case
+PASS  metals case spends the same universal points
+checks: 80, passed: 80, failed: 0
 
 All 13 missions cleared automatically, 27 steps.
 ```

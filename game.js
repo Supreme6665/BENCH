@@ -19,6 +19,18 @@
   const EXPANSION = DATA.expansion || { chapters: [] };
   const EXP_CHAPTERS = EXPANSION.chapters || [];
   const EXP_CASES = EXPANSION.cases || [];
+  const CASE_DEFS = [
+    {
+      id: CASE.id,
+      name: CASE.name,
+      tagline: CASE.tagline,
+      cost: CASE.cost,
+      items: REWARD_ITEMS,
+      kind: "organic"
+    },
+    ...EXP_CASES.map((def) => ({ ...def, kind: "expansion" }))
+  ];
+  const CASE_ITEM_TOTAL = CASE_DEFS.reduce((sum, def) => sum + def.items.length, 0);
   const REACTIONS = DATA.reactions;
   const MISSIONS = DATA.missions;
   const CONCEPTS = DATA.concepts;
@@ -35,7 +47,6 @@
   let concept = null;
   let drill = null;
   let chapterView = null;
-  let expCaseState = null;
   let caseState = null;
   let lastOverlayFocus = null;
 
@@ -52,7 +63,7 @@
       casesOpened: 0,
       duplicates: 0,
       collection: {},
-      expansion: { tutorials: {}, best: {}, attempts: {}, cases: {} }
+      expansion: { tutorials: {}, best: {}, attempts: {}, completions: {}, cases: {} }
     };
   }
 
@@ -77,6 +88,7 @@
       parsed.expansion.tutorials = parsed.expansion.tutorials && typeof parsed.expansion.tutorials === "object" ? parsed.expansion.tutorials : {};
       parsed.expansion.best = parsed.expansion.best && typeof parsed.expansion.best === "object" ? parsed.expansion.best : {};
       parsed.expansion.attempts = parsed.expansion.attempts && typeof parsed.expansion.attempts === "object" ? parsed.expansion.attempts : {};
+      parsed.expansion.completions = parsed.expansion.completions && typeof parsed.expansion.completions === "object" ? parsed.expansion.completions : {};
       parsed.expansion.cases = parsed.expansion.cases && typeof parsed.expansion.cases === "object" ? parsed.expansion.cases : {};
       return parsed;
     } catch {
@@ -150,8 +162,43 @@
     return REWARD_ITEMS.filter((item) => (progress.collection?.[item.id] || 0) > 0).length;
   }
 
-  function casesOpened() {
-    return progress.casesOpened || 0;
+  function caseDef(caseId) {
+    return CASE_DEFS.find((def) => def.id === caseId) || CASE_DEFS[0];
+  }
+
+  function isOrganicCase(def) {
+    return def.id === CASE.id;
+  }
+
+  function caseRecordFor(def) {
+    if (isOrganicCase(def)) {
+      return {
+        opened: progress.casesOpened || 0,
+        duplicates: progress.duplicates || 0,
+        collection: progress.collection || {}
+      };
+    }
+    return expCaseRecord(def.id);
+  }
+
+  function caseCollectionFor(def) {
+    return caseRecordFor(def).collection || {};
+  }
+
+  function caseFound(def) {
+    return def.items.filter((item) => (caseCollectionFor(def)[item.id] || 0) > 0).length;
+  }
+
+  function caseOpenedCount(def) {
+    return caseRecordFor(def).opened || 0;
+  }
+
+  function caseTotalFound() {
+    return CASE_DEFS.reduce((sum, def) => sum + caseFound(def), 0);
+  }
+
+  function casesOpenedTotal() {
+    return CASE_DEFS.reduce((sum, def) => sum + caseOpenedCount(def), 0);
   }
 
   function expCaseRecord(caseId) {
@@ -161,30 +208,48 @@
     return progress.expansion.cases[caseId];
   }
 
-  function expCaseFound(caseId) {
-    const def = EXP_CASES.find((c) => c.id === caseId);
-    const rec = progress.expansion.cases[caseId];
-    if (!def || !rec) return 0;
-    return def.items.filter((item) => (rec.collection?.[item.id] || 0) > 0).length;
-  }
-
-  function caseOdds() {
-    const total = REWARD_ITEMS.reduce((sum, item) => sum + (item.weight || 0), 0) || 1;
+  function caseOdds(def) {
+    const total = def.items.reduce((sum, item) => sum + (item.weight || 0), 0) || 1;
     return RARITIES.map((rarity) => {
-      const items = REWARD_ITEMS.filter((item) => item.rarity === rarity.id);
+      const items = def.items.filter((item) => item.rarity === rarity.id);
       const weight = items.reduce((sum, item) => sum + (item.weight || 0), 0);
       return { ...rarity, items, weight, percent: (weight / total) * 100 };
-    });
+    }).filter((rarity) => rarity.items.length > 0);
   }
 
-  function rollCaseItem() {
-    const total = REWARD_ITEMS.reduce((sum, item) => sum + (item.weight || 0), 0);
+  function rollFrom(items) {
+    const total = items.reduce((sum, item) => sum + (item.weight || 0), 0);
     let roll = Math.random() * total;
-    for (const item of REWARD_ITEMS) {
+    for (const item of items) {
       roll -= item.weight || 0;
       if (roll <= 0) return item;
     }
-    return REWARD_ITEMS[REWARD_ITEMS.length - 1];
+    return items[items.length - 1];
+  }
+
+  function recordCaseOpen(def, item, isNew, refund) {
+    const rec = caseRecordFor(def);
+    if (isOrganicCase(def)) {
+      progress.points = (progress.points || 0) - def.cost;
+      progress.casesOpened = (progress.casesOpened || 0) + 1;
+      if (isNew) {
+        progress.collection[item.id] = 1;
+      } else {
+        progress.points += refund;
+        progress.duplicates = (progress.duplicates || 0) + 1;
+        progress.collection[item.id] = (progress.collection[item.id] || 0) + 1;
+      }
+      return;
+    }
+    progress.points = (progress.points || 0) - def.cost;
+    rec.opened = (rec.opened || 0) + 1;
+    if (isNew) {
+      rec.collection[item.id] = 1;
+    } else {
+      progress.points += refund;
+      rec.duplicates = (rec.duplicates || 0) + 1;
+      rec.collection[item.id] = (rec.collection[item.id] || 0) + 1;
+    }
   }
 
   function rewardDiagramHTML(item, className = "reward-figure") {
@@ -405,7 +470,7 @@
           <div class="title-copy">
             <span class="kicker">A text-based organic synthesis game · H2 2026</span>
             <h1>You have a flask.<br>You have a shelf.<br><em>Make the molecule.</em></h1>
-            <p class="lede">Thirteen synthesis briefs, twenty-seven bench steps and a 300-question Concept Lab. Every reagent, condition, test, structure and mechanism is drawn from the H2 organic chemistry notes. Read the brief. Choose the reagent. Justify the route.</p>
+            <p class="lede">Thirteen synthesis briefs, twenty-seven bench steps, a 300-question Concept Lab and a 16-chapter Physical & Inorganic expansion. Every reagent, condition, test, structure and mechanism is drawn from the H2 notes. Read the brief. Choose the reagent. Justify the route — then spend your universal points in the Case Lab.</p>
             <nav class="menu" aria-label="Main menu">
               <button class="menu-item" data-action="start-campaign">
                 <span class="menu-no">01</span>
@@ -425,7 +490,7 @@
               <button class="menu-item" data-action="case-lab">
                 <span class="menu-no">04</span>
                 <span class="menu-label">Case Lab</span>
-                <span class="menu-note">${CASE.cost} pts / case · ${REWARD_ITEMS.length} compounds</span>
+                <span class="menu-note">${CASE_DEFS.length} cases · ${CASE_ITEM_TOTAL} collectibles · ${CASE.cost} pts each</span>
               </button>
               <button class="menu-item" data-action="notes">
                 <span class="menu-no">05</span>
@@ -458,7 +523,7 @@
 
         <div class="title-footer">
           <span><strong>Procedure:</strong> read the brief → choose one reagent system → run the reaction</span>
-          <span><strong>Research:</strong> ${progress.points || 0} pts · ${collectionCount()}/${REWARD_ITEMS.length} compounds</span>
+          <span><strong>Research:</strong> ${progress.points || 0} pts · ${caseTotalFound()}/${CASE_ITEM_TOTAL} case collectibles</span>
           <span><strong>Rank:</strong> ${esc(rankFor(xp))}</span>
           <span><strong>Best possible yield:</strong> ${MISSIONS.length * 100}</span>
         </div>
@@ -753,6 +818,8 @@
           <div class="score-cell"><span>Missteps / hints</span><strong>${mission.wrong} / ${mission.hints}</strong></div>
         </div>
 
+        <div class="reward-callout"><span>Research payout</span><strong>+${mission.pointsEarned || 0} PTS</strong><span>Universal points — spend them on any case in the Case Lab.</span></div>
+
         <div class="debrief">
           <h3>Debrief</h3>
           <p>${esc(m.debrief)}</p>
@@ -895,7 +962,7 @@
         <div class="reward-callout">
           <span>Case Lab</span>
           <strong>${progress.points || 0} PTS</strong>
-          <span>${progress.points >= CASE.cost ? "A case is ready to open." : `${CASE.cost - (progress.points || 0)} more correct answers for the next case.`}</span>
+          <span>${progress.points >= CASE.cost ? "A case is ready to open." : `${CASE.cost - (progress.points || 0)} more points from any mode for the next case.`}</span>
         </div>
 
         ${missed.length ? `
@@ -952,7 +1019,7 @@
               <span class="chapter-code">${esc(chapter.code)}</span>
               <span class="chapter-title">${esc(chapter.title)}</span>
               <span class="chapter-subtitle">${esc(chapter.subtitle)}</span>
-              <span class="chapter-meta">${chapter.questions?.length || 0} MCQs · ${chapter.sections.length} tutorial steps</span>
+              <span class="chapter-meta">${chapter.questions?.length || 0} MCQs · ${chapter.sections.length} tutorial steps · pays PTS</span>
               <span class="chapter-status">${tutorialDone ? "TUTORIAL DONE" : "TUTORIAL"} · ${best ? `BEST ${best}/10` : attempts ? "IN PROGRESS" : "UNSTARTED"}</span>
             </button>
           `;
@@ -960,73 +1027,15 @@
       </div>
 
       <div class="expansion-actions">
-        <button class="button primary" data-action="expansion-cases">Topic cases · ${EXP_CASES.reduce((sum, c) => sum + c.items.length, 0)} collectibles</button>
+        <button class="button primary" data-action="case-lab">All cases · ${CASE_ITEM_TOTAL} collectibles · ${progress.points || 0} PTS</button>
         <button class="button" data-action="map">Campaign</button>
-        <button class="button" data-action="case-lab">Organic Case Lab · ${progress.points || 0} PTS</button>
-        <button class="button" data-action="start-concepts">Organic Concept Lab</button>
+        <button class="button" data-action="start-concepts">Concept Lab</button>
       </div>
     `;
   }
 
   function expansionCasesHTML() {
-    const points = progress.points || 0;
-    const totalItems = EXP_CASES.reduce((sum, c) => sum + c.items.length, 0);
-    const totalFound = EXP_CASES.reduce((sum, c) => sum + expCaseFound(c.id), 0);
-    return `
-      <header class="screen-head">
-        <button class="back-button" data-action="expansion">← A–P</button>
-        <div class="screen-title">
-          <span class="kicker">Expansion / topic cases</span>
-          <h2>Topic cases</h2>
-        </div>
-        <div class="scoreboard">${points} PTS<br><span class="rank">ARCHIVE ${totalFound}/${totalItems}</span></div>
-      </header>
-
-      <div class="expansion-intro">
-        <p>Two optional cases built from the new chapters. Each costs <strong>30 research points</strong> and contains one compound or ion from the physical/inorganic topics. Duplicates refund points. Undiscovered entries stay hidden as <strong>?</strong>.</p>
-      </div>
-
-      <div class="exp-case-grid">
-        ${EXP_CASES.map((def) => {
-          const rec = expCaseRecord(def.id);
-          const found = expCaseFound(def.id);
-          return `
-            <section class="exp-case-card">
-              <div class="exp-case-head">
-                <span class="kicker">${def.tagline}</span>
-                <h3>${esc(def.name)}</h3>
-                <p>${def.items.length} collectibles · ${def.cost} PTS per case</p>
-              </div>
-              <div class="exp-case-items">
-                ${def.items.map((item) => {
-                  const rarity = rarityById(item.rarity);
-                  return `<span class="exp-item-chip rarity-${item.rarity}" style="--rarity:${rarity.color}">${esc(item.formula)}</span>`;
-                }).join("")}
-              </div>
-              <div class="case-actions">
-                <button class="button primary" data-action="open-exp-case" data-case="${def.id}" ${points >= def.cost ? "" : "disabled"}>Open case · ${def.cost} PTS</button>
-                <span class="exp-case-count">${found}/${def.items.length} found · ${rec.opened || 0} opened</span>
-              </div>
-              <div class="exp-archive">
-                ${def.items.map((item) => {
-                  const count = rec.collection?.[item.id] || 0;
-                  const rarity = rarityById(item.rarity);
-                  return `
-                    <div class="exp-archive-card ${count ? "" : "unknown"} rarity-${item.rarity}" style="--rarity:${rarity.color}">
-                      ${count ? `<strong>${esc(item.formula)}</strong><span>${esc(item.name)}</span>${count > 1 ? `<em>×${count}</em>` : ""}` : `<strong>?</strong><span>Undiscovered</span>`}
-                    </div>
-                  `;
-                }).join("")}
-              </div>
-            </section>
-          `;
-        }).join("")}
-      </div>
-      <div class="expansion-actions">
-        <button class="button" data-action="expansion">Back to chapters</button>
-        <button class="button" data-action="case-lab">Organic Case Lab</button>
-      </div>
-    `;
+    return caseHTML();
   }
 
   function chapterHTML() {
@@ -1077,6 +1086,11 @@
         </section>
 
         <aside class="chapter-side">
+          <div class="reward-panel">
+            <span>Universal points</span>
+            <strong>${progress.points || 0}</strong>
+            <small>Tutorial +5 once · drill 2–12 per completion</small>
+          </div>
           <div class="reward-panel">
             <span>Chapter drill</span>
             <strong>${best}/10</strong>
@@ -1194,11 +1208,13 @@
           <div class="score-cell"><span>Percentage</span><strong>${pct}%</strong></div>
           <div class="score-cell"><span>Best</span><strong>${progress.expansion.best[chapter.code] || 0} / 10</strong></div>
         </div>
+        <div class="reward-callout"><span>Research payout</span><strong>+${drill.pointsEarned || 0} PTS</strong><span>Universal points — spend them on any case in the Case Lab.</span></div>
         ${missed.length ? `
           <div class="debrief"><h3>Review these</h3><ul class="review-list">${missed.map(({ q }) => `<li><strong>${esc(q.question)}</strong> — ${esc(q.explanation)}</li>`).join("")}</ul></div>
         ` : `<div class="debrief"><h3>Debrief</h3><p>Every answer was correct. Try another set or move to the next chapter.</p></div>`}
         <div class="complete-actions">
-          <button class="button primary" data-action="start-drill" data-code="${chapter.code}">New drill →</button>
+          <button class="button primary" data-action="case-lab">Spend in Case Lab →</button>
+          <button class="button" data-action="start-drill" data-code="${chapter.code}">New drill →</button>
           <button class="button" data-action="chapter" data-code="${chapter.code}">Back to tutorial</button>
           <button class="button" data-action="expansion">All chapters</button>
         </div>
@@ -1243,70 +1259,77 @@
 
   function caseHTML() {
     const points = progress.points || 0;
-    const owned = collectionCount();
-    const total = REWARD_ITEMS.length;
-    const pct = total ? Math.round((owned / total) * 100) : 0;
-    const canOpen = points >= CASE.cost;
-    const odds = caseOdds();
+    const totalFound = caseTotalFound();
     return `
       <header class="screen-head">
         <button class="back-button" data-action="map">← Map</button>
         <div class="screen-title">
-          <span class="kicker">Reward lab / ${esc(CASE.name)}</span>
+          <span class="kicker">Reward lab / universal research points</span>
           <h2>Case Lab</h2>
         </div>
-        <div class="scoreboard">RESEARCH <strong>${points}</strong> PTS<br><span class="rank">COLLECTION ${owned}/${total} · ${plural(casesOpened(), "case")}</span></div>
+        <div class="scoreboard">RESEARCH <strong>${points}</strong> PTS<br><span class="rank">ARCHIVE ${totalFound}/${CASE_ITEM_TOTAL} · ${plural(casesOpenedTotal(), "case")}</span></div>
       </header>
 
-      <div class="reward-layout">
-        <section class="case-panel">
-          <div class="case-art-wrap">${caseArtSVG()}</div>
-          <div class="case-panel-copy">
-            <span class="kicker">Case 01 / ${CASE.cost} PTS</span>
-            <h3>${esc(CASE.name)}</h3>
-            <p>${esc(CASE.tagline)}. Every case contains one compound. Rarity decides how often it appears; duplicates refund a few research points.</p>
-            <div class="case-odds">
-              ${odds.map((r) => `
-                <div class="case-odds-row" style="--rarity:${r.color}">
-                  <span class="rarity-dot"></span>
-                  <span class="case-odds-label">${esc(r.label)}</span>
-                  <span class="case-odds-count">${r.items.length} compound${r.items.length === 1 ? "" : "s"}</span>
-                  <strong>${r.percent.toFixed(2)}%</strong>
-                </div>
-              `).join("")}
-            </div>
-            <div class="case-actions">
-              <button class="button primary" data-action="open-case" ${canOpen ? "" : "disabled"}>Open case · ${CASE.cost} PTS</button>
-              <button class="button" data-action="collection">Collection book · ${owned}/${total}</button>
-            </div>
-            <p class="case-progress">${canOpen
-              ? "Ready. One compound will be added to the collection."
-              : `${points} / ${CASE.cost} PTS · ${CASE.cost - points} more correct Concept Lab answers for the next case.`}</p>
-          </div>
-        </section>
+      <div class="case-wallet">
+        <div>
+          <span class="kicker">One wallet · every topic</span>
+          <p>Points earned in any campaign brief, chapter tutorial, chapter drill or Concept Lab question spend here. Every case costs <strong>${CASE.cost} points</strong>; duplicates refund points by rarity.</p>
+        </div>
+        <div class="case-wallet-balance"><span>Balance</span><strong>${points}</strong><small>research points</small></div>
+        <div class="case-wallet-balance"><span>Cases</span><strong>${CASE_DEFS.length}</strong><small>${CASE_ITEM_TOTAL} collectibles</small></div>
+      </div>
 
-        <aside class="reward-side">
-          <div class="reward-panel">
-            <span>Research points</span>
-            <strong>${points}</strong>
-            <small>1 point per correct Concept Lab answer</small>
-          </div>
-          <div class="reward-panel">
-            <span>Cases opened</span>
-            <strong>${casesOpened()}</strong>
-            <small>${progress.duplicates || 0} duplicate${progress.duplicates === 1 ? "" : "s"} pulled</small>
-          </div>
-          <div class="reward-panel">
-            <span>Collection</span>
-            <strong>${owned}/${total}</strong>
-            <div class="progress-track" aria-label="Collection progress"><div class="progress-fill" style="width:${pct}%"></div></div>
-            <button class="link-button" data-action="collection">Open collection book →</button>
-          </div>
-          <div class="reward-note">
-            <h3>Economy</h3>
-            <p>30 correct answers = 30 points = one case. At about 150 correct answers per hour, completing all ${total} compounds takes roughly 10 hours.</p>
-          </div>
-        </aside>
+      <div class="case-hub-grid">
+        ${CASE_DEFS.map((def) => {
+          const found = caseFound(def);
+          const opened = caseOpenedCount(def);
+          const canOpen = points >= def.cost;
+          const kindLabel = isOrganicCase(def) ? "Organic" : "Physical & Inorganic";
+          return `
+            <section class="case-hub-card case-panel" data-case-card="${def.id}" style="--case-accent:${isOrganicCase(def) ? "var(--red)" : "var(--ink)"}">
+              <div class="case-hub-head">
+                <span class="kicker">${esc(kindLabel)} · ${def.cost} PTS per case</span>
+                <h3>${esc(def.name)}</h3>
+                <p>${esc(def.tagline)}</p>
+              </div>
+              <div class="case-hub-statline">
+                <span><strong>${found}</strong> / ${def.items.length} found</span>
+                <span>${plural(opened, "case")} opened</span>
+              </div>
+              <div class="case-archive">
+                ${def.items.map((item) => {
+                  const count = caseCollectionFor(def)[item.id] || 0;
+                  const rarity = rarityById(item.rarity);
+                  return `
+                    <div class="case-archive-card ${count ? "" : "unknown"} rarity-${item.rarity}" style="--rarity:${rarity.color}">
+                      ${count
+                        ? `<strong>${esc(item.formula)}</strong><span>${esc(item.name)}</span>${count > 1 ? `<em>×${count}</em>` : ""}`
+                        : `<strong>?</strong><span>Undiscovered</span>`}
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+              <div class="case-actions">
+                <button class="button primary" data-action="open-case" data-case="${def.id}" ${canOpen ? "" : "disabled"}>Open case · ${def.cost} PTS</button>
+                ${isOrganicCase(def) ? `<button class="button" data-action="collection">Collection book · ${found}/${def.items.length}</button>` : ""}
+              </div>
+              <p class="case-progress">${canOpen
+                ? "Ready. One collectible will be added to this case archive."
+                : `${points} / ${def.cost} PTS · ${def.cost - points} more points for the next case.`}</p>
+            </section>
+          `;
+        }).join("")}
+      </div>
+
+      <div class="case-hub-foot">
+        <div class="reward-note">
+          <h3>How points are earned</h3>
+          <p>Concept Lab: 1 point per correct answer. Campaign brief: 2–5 points by yield. Chapter tutorial: +5 once. Chapter drill: 2 points for finishing + 1 per correct answer, with a first-clear bonus.</p>
+        </div>
+        <div class="case-actions">
+          <button class="button" data-action="expansion">Study chapters →</button>
+          <button class="button" data-action="start-concepts">Concept Lab</button>
+        </div>
       </div>
     `;
   }
@@ -1324,7 +1347,7 @@
           <span class="kicker">Collection book / organic compounds</span>
           <h2>${complete ? "Collection complete" : "The collection"}</h2>
         </div>
-        <div class="scoreboard">FOUND <strong>${owned}</strong> / ${total}<br><span class="rank">${points} PTS · ${plural(casesOpened(), "case")}</span></div>
+        <div class="scoreboard">FOUND <strong>${owned}</strong> / ${total}<br><span class="rank">${points} PTS · ${plural(progress.casesOpened || 0, "case")}</span></div>
       </header>
 
       <div class="collection-top">
@@ -1392,36 +1415,30 @@
     `;
   }
 
-  function openCase() {
-    if (!CASE || !REWARD_ITEMS.length) {
-      toast("The case is not loaded.");
+  function openCase(caseId = CASE.id) {
+    const def = caseDef(caseId);
+    if (!def || !def.items.length) {
+      toast("That case is not loaded.");
       return;
     }
     const points = progress.points || 0;
-    if (points < CASE.cost) {
-      toast(`Need ${CASE.cost - points} more research points.`);
+    if (points < def.cost) {
+      toast(`Need ${def.cost - points} more research points.`);
       return;
     }
-    const item = rollCaseItem();
-    const ownedBefore = progress.collection[item.id] || 0;
+    const collection = caseCollectionFor(def);
+    const item = rollFrom(def.items);
+    const ownedBefore = collection[item.id] || 0;
     const isNew = ownedBefore === 0;
-    progress.points = points - CASE.cost;
-    progress.casesOpened = (progress.casesOpened || 0) + 1;
-    let refund = 0;
-    if (isNew) {
-      progress.collection[item.id] = 1;
-    } else {
-      refund = CASE.duplicateRefunds?.[item.rarity] || 0;
-      progress.points += refund;
-      progress.duplicates = (progress.duplicates || 0) + 1;
-      progress.collection[item.id] = ownedBefore + 1;
-    }
+    const refund = isNew ? 0 : (CASE.duplicateRefunds?.[item.rarity] || 0);
+    recordCaseOpen(def, item, isNew, refund);
     const reel = [];
     for (let i = 0; i < 45; i += 1) {
-      const pick = i === 38 ? item : REWARD_ITEMS[Math.floor(Math.random() * REWARD_ITEMS.length)];
+      const pick = i === 38 ? item : def.items[Math.floor(Math.random() * def.items.length)];
       reel.push(pick);
     }
     caseState = {
+      def,
       item,
       isNew,
       refund,
@@ -1436,130 +1453,8 @@
     animateCaseReel();
   }
 
-  function rollFrom(items) {
-    const total = items.reduce((sum, item) => sum + (item.weight || 0), 0);
-    let roll = Math.random() * total;
-    for (const item of items) {
-      roll -= item.weight || 0;
-      if (roll <= 0) return item;
-    }
-    return items[items.length - 1];
-  }
-
   function openExpansionCase(caseId) {
-    const def = EXP_CASES.find((c) => c.id === caseId);
-    if (!def) return;
-    const points = progress.points || 0;
-    if (points < def.cost) {
-      toast(`Need ${def.cost - points} more research points.`);
-      return;
-    }
-    const rec = expCaseRecord(caseId);
-    const item = rollFrom(def.items);
-    const ownedBefore = rec.collection[item.id] || 0;
-    const isNew = ownedBefore === 0;
-    progress.points = points - def.cost;
-    rec.opened = (rec.opened || 0) + 1;
-    let refund = 0;
-    if (isNew) {
-      rec.collection[item.id] = 1;
-    } else {
-      refund = REWARDS.case.duplicateRefunds?.[item.rarity] || 0;
-      progress.points += refund;
-      rec.duplicates = (rec.duplicates || 0) + 1;
-      rec.collection[item.id] = ownedBefore + 1;
-    }
-    const reel = [];
-    for (let i = 0; i < 40; i += 1) reel.push(i === 33 ? item : def.items[Math.floor(Math.random() * def.items.length)]);
-    expCaseState = { def, item, isNew, refund, reel, phase: "spinning", token: Date.now() + Math.random() };
-    saveProgress();
-    view.overlay = "expcase";
-    render();
-    focusElement(".case-opening-panel");
-    animateExpCaseReel();
-  }
-
-  function expCaseReelCard(item) {
-    const rarity = rarityById(item.rarity);
-    return `<div class="case-reel-card rarity-${item.rarity}" style="--rarity:${rarity.color}"><span class="case-reel-rarity">${esc(rarity.label)}</span><strong>${esc(item.name)}</strong><span>${esc(item.formula)}</span></div>`;
-  }
-
-  function animateExpCaseReel() {
-    if (!expCaseState || expCaseState.phase !== "spinning") return;
-    const token = expCaseState.token;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) {
-      expCaseState.phase = "revealed";
-      renderOverlay();
-      focusElement(".overlay-close");
-      return;
-    }
-    const alive = () => expCaseState && expCaseState.token === token && expCaseState.phase === "spinning";
-    const note = (text) => { if (alive()) { const el = document.getElementById("exp-case-spin-note"); if (el) el.textContent = text; } };
-    window.requestAnimationFrame(() => {
-      const reel = document.getElementById("exp-case-reel");
-      const win = document.getElementById("exp-case-reel-window");
-      const target = reel?.children?.[33];
-      if (!reel || !win || !target) return;
-      const targetOffset = Math.max(0, target.offsetLeft + target.offsetWidth / 2 - win.clientWidth / 2);
-      reel.style.transition = "transform 8.75s cubic-bezier(0.06, 0.72, 0.08, 1)";
-      reel.style.transform = `translate3d(-${targetOffset + 58}px, 0, 0)`;
-      note("The case is opening…");
-      window.setTimeout(() => note("Slowing down…"), 3300);
-      window.setTimeout(() => note("The marker is closing in…"), 6300);
-      window.setTimeout(() => note("Wait for it…"), 8600);
-      window.setTimeout(() => {
-        if (!alive()) return;
-        reel.style.transition = "transform 0.9s cubic-bezier(0.18, 0.84, 0.2, 1)";
-        reel.style.transform = `translate3d(-${targetOffset}px, 0, 0)`;
-      }, 8750);
-    });
-    window.setTimeout(() => {
-      if (alive()) { expCaseState.phase = "revealed"; renderOverlay(); focusElement(".overlay-close"); }
-    }, 9900);
-  }
-
-  function expCaseOverlayHTML() {
-    if (!expCaseState) return "";
-    const def = expCaseState.def;
-    const item = expCaseState.item;
-    const rarity = rarityById(item.rarity);
-    if (expCaseState.phase === "spinning") {
-      return `
-        <div class="overlay case-overlay" data-overlay-backdrop>
-          <div class="overlay-panel case-opening-panel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="exp-case-title">
-            <div class="overlay-head"><h2 id="exp-case-title">Opening ${esc(def.name)}</h2><span class="case-overlay-balance">${progress.points || 0} PTS</span></div>
-            <div class="overlay-body">
-              <div class="case-reel-window" id="exp-case-reel-window"><div class="case-reel" id="exp-case-reel">${expCaseState.reel.map(expCaseReelCard).join("")}</div><div class="case-reel-marker" aria-hidden="true"></div></div>
-              <p class="case-spin-note" id="exp-case-spin-note">One collectible. ${def.cost} research points. Good luck.</p>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-    const rec = expCaseRecord(def.id);
-    const found = expCaseFound(def.id);
-    return `
-      <div class="overlay case-overlay" data-overlay-backdrop>
-        <div class="overlay-panel case-reveal-panel rarity-${item.rarity}" style="--rarity:${rarity.color}" role="dialog" aria-modal="true" aria-labelledby="exp-case-title">
-          <div class="overlay-head"><h2 id="exp-case-title">Case opened</h2><button class="overlay-close" data-action="close-overlay">Close ✕</button></div>
-          <div class="overlay-body case-reveal">
-            <div class="case-reveal-rarity"><span class="rarity-dot"></span>${esc(rarity.label)}</div>
-            <div class="exp-winner-formula">${esc(item.formula)}</div>
-            <h3>${esc(item.name)}</h3>
-            <p>${esc(item.blurb)}</p>
-            <div class="case-reveal-status">${expCaseState.isNew ? `<span class="stamp">New archive entry</span>` : `<span class="stamp">Duplicate +${expCaseState.refund} PTS</span>`}<span>Archive ${found}/${def.items.length}</span></div>
-            <div class="case-reveal-meta">${esc(def.name)} · ${rec.opened} opened · ${progress.points || 0} PTS</div>
-            <div class="complete-actions">
-              <button class="button primary" data-action="open-exp-case" data-case="${def.id}" ${(progress.points || 0) >= def.cost ? "" : "disabled"}>Open another · ${def.cost} PTS</button>
-              <button class="button" data-action="expansion-cases">Topic archive</button>
-              <button class="button" data-action="close-overlay">Close</button>
-            </div>
-            ${(progress.points || 0) < def.cost ? `<p class="case-progress">${progress.points || 0} / ${def.cost} PTS · ${def.cost - (progress.points || 0)} more correct answers for the next case.</p>` : ""}
-          </div>
-        </div>
-      </div>
-    `;
+    openCase(caseId);
   }
 
   function animateCaseReel() {
@@ -1622,45 +1517,57 @@
 
   function caseOverlayHTML() {
     if (!caseState) return "";
+    const def = caseState.def;
     const item = caseState.item;
     const rarity = rarityById(item.rarity);
+    const organic = isOrganicCase(def);
     if (caseState.phase === "spinning") {
       return `
         <div class="overlay case-overlay" data-overlay-backdrop>
           <div class="overlay-panel case-opening-panel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="case-overlay-title">
-            <div class="overlay-head"><h2 id="case-overlay-title">Opening case</h2><span class="case-overlay-balance">${progress.points || 0} PTS</span></div>
+            <div class="overlay-head"><h2 id="case-overlay-title">Opening ${esc(def.name)}</h2><span class="case-overlay-balance">${progress.points || 0} PTS</span></div>
             <div class="overlay-body">
+              <div class="case-opening-lede">
+                <span class="kicker">${esc(def.tagline)}</span>
+                <p>One collectible from ${def.items.length}. ${def.cost} research points. Good luck.</p>
+              </div>
               <div class="case-reel-window" id="case-reel-window">
                 <div class="case-reel" id="case-reel">${caseState.reel.map(caseReelCard).join("")}</div>
                 <div class="case-reel-marker" aria-hidden="true"></div>
               </div>
-              <p class="case-spin-note" id="case-spin-note">One compound. ${CASE.cost} research points. Good luck.</p>
+              <p class="case-spin-note" id="case-spin-note">The reel is spinning…</p>
             </div>
           </div>
         </div>
       `;
     }
+    const found = caseFound(def);
     return `
       <div class="overlay case-overlay" data-overlay-backdrop>
-        <div class="overlay-panel case-reveal-panel rarity-${item.rarity}" style="--rarity:${rarity.color}" role="dialog" aria-modal="true" aria-labelledby="case-overlay-title">
+        <div class="overlay-panel case-reveal-panel" style="--rarity:${rarity.color}" role="dialog" aria-modal="true" aria-labelledby="case-overlay-title">
           <div class="overlay-head"><h2 id="case-overlay-title">Case opened</h2><button class="overlay-close" data-action="close-overlay">Close ✕</button></div>
           <div class="overlay-body case-reveal">
-            <div class="case-reveal-rarity"><span class="rarity-dot"></span>${esc(rarity.label)}</div>
-            ${rewardDiagramHTML(item, "case-winner-figure")}
+            <div class="case-reveal-rarity"><span class="rarity-dot"></span>${esc(rarity.label)} · ${esc(def.name)}</div>
+            ${organic
+              ? rewardDiagramHTML(item, "case-winner-figure")
+              : `<div class="case-winner-formula case-winner-formula-large">${esc(item.formula)}</div>`}
             <h3>${esc(item.name)}</h3>
-            <div class="case-winner-formula">${esc(item.formula)}</div>
+            ${organic ? `<div class="case-winner-formula">${esc(item.formula)}</div>` : ""}
             <p>${esc(item.blurb)}</p>
             <div class="case-reveal-status">
-              ${caseState.isNew ? `<span class="stamp">New compound</span>` : `<span class="stamp">Duplicate +${caseState.refund} PTS</span>`}
-              <span>Collection ${collectionCount()} / ${REWARD_ITEMS.length}</span>
+              ${caseState.isNew
+                ? `<span class="stamp">${organic ? "New compound" : "New archive entry"}</span>`
+                : `<span class="stamp">Duplicate +${caseState.refund} PTS</span>`}
+              <span>${esc(def.name)} archive ${found}/${def.items.length}</span>
             </div>
-            <div class="case-reveal-meta">RESEARCH ${progress.points || 0} PTS · ${plural(casesOpened(), "case")} opened</div>
+            <div class="case-reveal-meta">${esc(def.name)} · ${plural(caseOpenedCount(def), "case")} opened · ${progress.points || 0} PTS left</div>
             <div class="complete-actions">
-              <button class="button primary" data-action="open-case" ${(progress.points || 0) >= CASE.cost ? "" : "disabled"}>Open another · ${CASE.cost} PTS</button>
-              <button class="button" data-action="collection">Collection book</button>
+              <button class="button primary" data-action="open-case" data-case="${def.id}" ${(progress.points || 0) >= def.cost ? "" : "disabled"}>Open another · ${def.cost} PTS</button>
+              <button class="button" data-action="case-lab">All cases</button>
+              ${organic ? `<button class="button" data-action="collection">Collection book</button>` : ""}
               <button class="button" data-action="close-overlay">Close</button>
             </div>
-            ${(progress.points || 0) < CASE.cost ? `<p class="case-progress">${progress.points || 0} / ${CASE.cost} PTS · ${CASE.cost - (progress.points || 0)} more correct answers for the next case.</p>` : ""}
+            ${(progress.points || 0) < def.cost ? `<p class="case-progress">${progress.points || 0} / ${def.cost} PTS · ${def.cost - (progress.points || 0)} more points from campaign briefs, chapters or the Concept Lab.</p>` : ""}
           </div>
         </div>
       </div>
@@ -1711,10 +1618,6 @@
     if (view.overlay === "case" && caseState) {
       overlayRoot.innerHTML = caseOverlayHTML();
       drawDiagrams();
-      return;
-    }
-    if (view.overlay === "expcase" && expCaseState) {
-      overlayRoot.innerHTML = expCaseOverlayHTML();
       return;
     }
     if (view.overlay === "help") {
@@ -1781,9 +1684,7 @@
 
   function closeOverlay() {
     if (view.overlay === "case" && caseState?.phase === "spinning") return;
-    if (view.overlay === "expcase" && expCaseState?.phase === "spinning") return;
     if (view.overlay === "case") caseState = null;
-    if (view.overlay === "expcase") expCaseState = null;
     view.overlay = null;
     renderOverlay();
     if (lastOverlayFocus && document.contains(lastOverlayFocus)) {
@@ -1835,13 +1736,7 @@
   }
 
   function goExpansionCases() {
-    view.screen = "expcases";
-    view.overlay = null;
-    caseState = null;
-    expCaseState = null;
-    location.hash = "expansion-cases";
-    render();
-    scrollTop();
+    goCaseLab();
   }
 
   function goChapter(code) {
@@ -2166,6 +2061,8 @@
       completed: true
     };
     progress.totalRuns = (progress.totalRuns || 0) + 1;
+    mission.pointsEarned = Math.max(2, Math.round((mission.score || 0) / 20));
+    progress.points = (progress.points || 0) + mission.pointsEarned;
     saveProgress();
     mission.complete = true;
     mission.newBest = newBest;
@@ -2173,6 +2070,7 @@
     mission.feedback = null;
     render();
     scrollTop();
+    toast(`Brief cleared. +${mission.pointsEarned} PTS for any case.`);
     if (newBest) toast(`New best on ${mission.def.title}: ${mission.score} yield`);
   }
 
@@ -2276,10 +2174,16 @@
      ============================================================ */
 
   function markTutorial(code) {
+    const first = !progress.expansion.tutorials[code];
     progress.expansion.tutorials[code] = true;
+    let awarded = 0;
+    if (first) {
+      awarded = 5;
+      progress.points = (progress.points || 0) + awarded;
+    }
     saveProgress();
     render();
-    toast("Tutorial marked complete.");
+    toast(first ? `Tutorial complete. +${awarded} PTS added to your universal balance.` : "Tutorial already completed.");
   }
 
   function answerDrill(index) {
@@ -2308,12 +2212,16 @@
     drill.done = true;
     const code = drill.chapter.code;
     const best = progress.expansion.best[code] || 0;
+    const firstClear = (progress.expansion.completions[code] || 0) === 0;
     drill.newBest = drill.correct > best;
+    drill.pointsEarned = 2 + drill.correct + (firstClear ? 3 : 0);
     progress.expansion.best[code] = Math.max(best, drill.correct);
+    progress.expansion.completions[code] = (progress.expansion.completions[code] || 0) + 1;
+    progress.points = (progress.points || 0) + drill.pointsEarned;
     saveProgress();
     render();
     scrollTop();
-    if (drill.newBest) toast(`New chapter best: ${drill.correct} / 10`);
+    toast(`Chapter complete. +${drill.pointsEarned} PTS for any case.`);
   }
 
   function answerConcept(index) {
@@ -2395,7 +2303,7 @@
     else if (action === "notes") goNotes();
     else if (action === "expansion") goExpansion();
     else if (action === "expansion-cases") goExpansionCases();
-    else if (action === "open-exp-case" && target.dataset.case) openExpansionCase(target.dataset.case);
+    else if (action === "open-exp-case" && target.dataset.case) openCase(target.dataset.case);
     else if (action === "chapter" && target.dataset.code) goChapter(target.dataset.code);
     else if (action === "start-drill" && target.dataset.code) startDrill(target.dataset.code);
     else if (action === "mark-tutorial" && target.dataset.code) markTutorial(target.dataset.code);
@@ -2403,7 +2311,7 @@
     else if (action === "drill-next") nextDrill();
     else if (action === "case-lab") goCaseLab();
     else if (action === "collection") goCollection();
-    else if (action === "open-case") openCase();
+    else if (action === "open-case") openCase(target.dataset.case || CASE.id);
     else if (action === "help") openOverlay("help");
     else if (action === "close-overlay") closeOverlay();
     else if (action === "next") goNext();
@@ -2516,9 +2424,8 @@
       render();
       return true;
     }
-    if (hash === "expansion-cases") {
-      view.screen = "expcases";
-      render();
+    if (hash === "expansion-cases" || hash === "cases") {
+      goCaseLab();
       return true;
     }
     if (hash.startsWith("chapter/")) {

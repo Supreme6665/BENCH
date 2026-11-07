@@ -440,6 +440,22 @@
         { id: "dichromate", name: "Dichromate(VI)", formula: "Cr₂O₇²⁻", rarity: "epic", weight: 70, blurb: "The orange oxidant that turns green as Cr(III) forms.", source: "B Volumetric Analysis; M Transition Metals" },
         { id: "cisplatin", name: "cis-Platin", formula: "[Pt(NH₃)₂Cl₂]", rarity: "legendary", weight: 30, blurb: "A square-planar platinum complex with cis-trans isomerism.", source: "M Transition Metals" }
       ]
+    },
+    {
+      id: "metals",
+      name: "Metals Case",
+      tagline: "The reactive, the rugged and the noble",
+      cost: 30,
+      items: [
+        { id: "iron-metal", name: "Iron", formula: "Fe", rarity: "common", weight: 200, blurb: "The blast-furnace metal and the Haber catalyst: cheap, strong and redox-active.", source: "M Transition Metals; P Periodic Table" },
+        { id: "aluminium-metal", name: "Aluminium", formula: "Al", rarity: "common", weight: 200, blurb: "Extracted by electrolysis in cryolite, and protected by a stubborn oxide layer.", source: "L2 Electrolytic Cells; P Periodic Table" },
+        { id: "copper-metal", name: "Copper", formula: "Cu", rarity: "uncommon", weight: 150, blurb: "Second only to silver in conductivity; the cathode of the Daniell cell.", source: "L1 Electrochemical Cells; M Transition Metals" },
+        { id: "titanium-metal", name: "Titanium", formula: "Ti", rarity: "uncommon", weight: 150, blurb: "Light, corrosion-resistant and biocompatible; TiO₂ is the white pigment.", source: "M Transition Metals; P Periodic Table" },
+        { id: "chromium-metal", name: "Chromium", formula: "Cr", rarity: "rare", weight: 100, blurb: "The corrosion-resistant plating metal; Cr(VI) is the orange dichromate oxidant.", source: "M Transition Metals; B Volumetric Analysis" },
+        { id: "silver-metal", name: "Silver", formula: "Ag", rarity: "rare", weight: 100, blurb: "The best conductor of all metals, and the mirror in Tollens' test.", source: "M Transition Metals; L1 Electrochemical Cells" },
+        { id: "tungsten-metal", name: "Tungsten", formula: "W", rarity: "epic", weight: 70, blurb: "The highest melting point of any metal: filament wire and carbide cutting tools.", source: "M Transition Metals; P Periodic Table" },
+        { id: "gold-metal", name: "Gold", formula: "Au", rarity: "legendary", weight: 30, blurb: "Noble and unreactive — until aqua regia dissolves it as chloroaurate.", source: "M Transition Metals; P Periodic Table" }
+      ]
     }
   ];
 
