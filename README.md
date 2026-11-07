@@ -35,19 +35,26 @@ Then open `http://localhost:8000` in a browser.
 
 ## Public deployment
 
-This repository is a static site. `.github/workflows/pages.yml` deploys it to GitHub Pages on
-every push to `main`. In the repository settings, set **Pages → Source** to **GitHub Actions**.
-The public game will then be available at:
+Repository: **https://github.com/Supreme6665/BENCH**
+
+A playable public preview of the pushed `main` branch:
 
 ```text
-https://<github-user>.github.io/<repository-name>/
+https://htmlpreview.github.io/?https://github.com/Supreme6665/BENCH/blob/main/index.html
+```
+
+For the official GitHub Pages URL, enable **Settings → Pages → Source: GitHub Actions**, then run
+the **Deploy BENCH to GitHub Pages** workflow from the Actions tab. The official URL will be:
+
+```text
+https://supreme6665.github.io/BENCH/
 ```
 
 To publish from this machine after authenticating GitHub:
 
 ```bash
 gh auth login --hostname github.com --git-protocol ssh --web
-./publish.sh bench-organic-synthesis
+./publish.sh BENCH
 ```
 
 `publish.sh` creates the public repository, pushes `main`, enables Pages and triggers the deploy.
